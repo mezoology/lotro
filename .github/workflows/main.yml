@@ -48,7 +48,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-	     mezoology/lotrotest:latest
-	     mezoology/lotrotest:5.7.0
-      	     ghcr.io/mezoology/lotrotest:latest
-	     ghcr.io/mezoology/lotrotest:5.7.0
+	  	mezoology/lotrotest:latest
+		mezoology/lotrotest:5.7.0
+		ghcr.io/mezoology/lotrotest:latest
+		ghcr.io/mezoology/lotrotest:5.7.0
