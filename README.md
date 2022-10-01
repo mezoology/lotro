@@ -1,4 +1,4 @@
-**Cloned for Automatic Google Build**
+**Cloned for Automatic Google Build.**
 
 ## Introduction
 This is a discord bot aimed at making it easy to schedule raids in a discord server. It is developed for LotRO but could work for any game if you edit the class names in the config file.
