@@ -52,3 +52,5 @@ jobs:
             mezoology/lotrotest:5.7.0
             ghcr.io/mezoology/lotrotest:latest
             ghcr.io/mezoology/lotrotest:5.7.0
+          cache-from: type=registry,ref=mezoology/lotrotest:lates
+          cache-to: type=inline
