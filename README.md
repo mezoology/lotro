@@ -4,7 +4,9 @@ Hosted on Dockerhub
 `docker pull mezoology/lotrobot:latest`  
 and on Github  
 `docker pull ghcr.io/mezoology/lotrobot:latest`  
-For more info on how to install visit: https://hub.docker.com/r/mezoology/lotrobot
+For more info on how to install visit: https://hub.docker.com/r/mezoology/lotrobot  
+
+ ALL CREDIT GOES TO [Baviaan](https://github.com/Baviaan) FOR BUILDING THIS BOT.
 ---
 ## Introduction
 This is a discord bot aimed at making it easy to schedule raids in a discord server. It is developed for LotRO but could work for any game if you edit the class names in the config file.
