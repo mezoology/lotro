@@ -22,6 +22,19 @@ jobs:
         name: Checkout
         uses: actions/checkout@v3
       -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          # list of Docker images to use as base name for tags
+          images: |
+            mezoology/lotrobot
+            ghcr.io/mezoology/lotrobot
+          # generate Docker tags based on the following events/attributes
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       -
@@ -47,10 +60,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
-          tags: |
-            mezoology/lotrobot:latest
-            mezoology/lotrobot:5.7.0
-            ghcr.io/mezoology/lotrobot:latest
-            ghcr.io/mezoology/lotrobot:5.7.0
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=mezoology/lotrobot:lates
           cache-to: type=inline
