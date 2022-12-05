@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": ".github",
+			"path": "../../lotro1/.github"
+		},
+		{
+			"name": "lotro",
+			"path": ".."
+		}
+	],
+	"settings": {}
+}
