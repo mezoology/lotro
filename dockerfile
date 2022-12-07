@@ -6,5 +6,6 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -U -r requirements.txt
 
 COPY /source/ .
+copy /data/ ../data/
 
 CMD [ "python", "./main.py" ]
