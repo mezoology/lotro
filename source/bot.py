@@ -24,7 +24,7 @@ class Bot(commands.Bot):
             version = re.search(regex, f.read(), re.MULTILINE).group(1)
         self.version = version
 
-        logfile = 'raid_bot.log'
+        logfile = './data/log/raid_bot.log'
         logging.basicConfig(filename=logfile, level=logging.WARNING, format='%(asctime)s %(levelname)s: %(message)s',
                             datefmt='%Y-%m-%d %H:%M:%S')
         logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ class Bot(commands.Bot):
             logger.warning("Language file '{0}' not found. Defaulting to English.".format(language))
         localization.install()
 
-        conn = create_connection('raid_db')
+        conn = create_connection('./data/db/raid_db')
         if conn:
             self.logger.info("Bot connected to raid database.")
             create_table(conn, 'settings')
