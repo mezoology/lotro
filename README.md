@@ -1,4 +1,4 @@
-# Cloned for Automatic Docker Build-Push.  
+# Forked for Automatic Docker Build/Push.  
 Built for LINUX/AMD64, LINUX/ARM64/V8 & LINUX/ARM/V7  
 Hosted on Dockerhub  
 `docker pull mezoology/lotrobot:latest`  
