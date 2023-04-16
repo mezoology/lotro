@@ -5,7 +5,7 @@ import pytz
 import re
 import requests
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from discord import app_commands
 from discord.ext import commands
 
@@ -30,9 +30,6 @@ class CalendarCog(commands.Cog):
         self.time_cog = bot.get_cog('TimeCog')
         self.upcoming_events = None
         self.cached_events_at = None
-        self.headers = {
-            "Authorization": "Bot {0}".format(bot.token)
-        }
 
     def is_raid_leader(self, user, guild):
         if user.guild_permissions.administrator:
@@ -51,7 +48,7 @@ class CalendarCog(commands.Cog):
         res = upsert(self.conn, 'Settings', ['calendar'], [ids], ['guild_id'], [guild_id])
         self.conn.commit()
 
-    async def update_calendar(self, guild_id, new_run=True):
+    async def update_calendar(self, guild_id):
         conn = self.bot.conn
         res = select_one(conn, 'Settings', ['calendar'], ['guild_id'], [guild_id])
         if not res:
@@ -84,11 +81,6 @@ class CalendarCog(commands.Cog):
             logger.warning("Failed to update calendar for guild {0}.".format(guild_id))
             logger.warning(e)
             return
-        if new_run:
-            try:
-                await chn.send(_("A new run has been posted!"), delete_after=3600)
-            except discord.Forbidden:
-                logger.warning("No write access to calendar channel for guild {0}.".format(guild_id))
 
     def calendar_embed(self, guild_id):
         conn = self.bot.conn
@@ -112,67 +104,64 @@ class CalendarCog(commands.Cog):
         embed.timestamp = datetime.now()
         return embed
 
-    def create_guild_event(self, raid_id):
+    async def create_guild_event(self, guild, raid_id):
         conn = self.bot.conn
-        channel_id, guild_id, name, tier, description, timestamp = select_one(conn, 'Raids', ['channel_id', 'guild_id', 'name', 'tier', 'boss', 'time'], ['raid_id'], [raid_id])
-        res = select_one(conn, 'Settings', ['guild_events'], ['guild_id'], [guild_id])
+        res = select_one(conn, 'Settings', ['guild_events'], ['guild_id'], [guild.id])
         if not res:
-            return
+            return 0
+        channel_id, name, tier, description, timestamp = select_one(conn, 'Raids', ['channel_id', 'name', 'tier', 'boss', 'time'], ['raid_id'], [raid_id])
 
-        metadata = {"location": f"https://discord.com/channels/{guild_id}/{channel_id}/{raid_id}"}
-        start_time = datetime.utcfromtimestamp(timestamp).isoformat() + 'Z'
-        end_time = datetime.utcfromtimestamp(timestamp+7200).isoformat() + 'Z'
+        location = f"https://discord.com/channels/{guild.id}/{channel_id}/{raid_id}"
+        start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        end_time = datetime.fromtimestamp(timestamp+7200, tz=timezone.utc)
         if tier:
             event_name = " ".join([name, tier])
         else:
             event_name = name
-        data = {
-            "entity_metadata": metadata,
-            'name': event_name,
-            "privacy_level": 2,
-            "scheduled_start_time": start_time,
-            "scheduled_end_time": end_time,
-            "description": description,
-            "entity_type": 3
-            }
-        url = self.bot.api + f"guilds/{guild_id}/scheduled-events"
-        r = requests.post(url, headers=self.headers, json=data)
-        r.raise_for_status()
-        event = r.json()
-        event_id = event['id']
+
+        try:
+            event = await guild.create_scheduled_event(name=event_name, start_time=start_time, end_time=end_time, entity_type=discord.EntityType.external, privacy_level=discord.PrivacyLevel.guild_only, location=location, description=description)
+        except discord.Forbidden:
+            logger.warning("Missing manage events permission for guild {0}".format(guild.id))
+            event_id = None
+        else:
+            event_id = event.id
         return event_id
 
-    def modify_guild_event(self, raid_id):
+    async def modify_guild_event(self, guild, raid_id):
         conn = self.bot.conn
-        guild_id, event_id, name, tier, description, timestamp = select_one(conn, 'Raids', ['guild_id', 'event_id', 'name', 'tier', 'boss', 'time'], ['raid_id'], [raid_id])
+        res = select_one(conn, 'Settings', ['guild_events'], ['guild_id'], [guild.id])
+        if not res:
+            return
+        event_id, name, tier, description, timestamp = select_one(conn, 'Raids', ['event_id', 'name', 'tier', 'boss', 'time'], ['raid_id'], [raid_id])
         if not event_id:
             return
 
-        start_time = datetime.utcfromtimestamp(timestamp).isoformat() + 'Z'
-        end_time = datetime.utcfromtimestamp(timestamp+7200).isoformat() + 'Z'
-        data = {
-                'name': " ".join([name, tier]),
-                'description': description,
-                'scheduled_start_time': start_time,
-                'scheduled_end_time': end_time
-                }
-        url = self.bot.api + f"guilds/{guild_id}/scheduled-events/{event_id}"
-        r = requests.patch(url, headers=self.headers, json=data)
-        r.raise_for_status()
-
-    def delete_guild_event(self, raid_id):
-        conn = self.bot.conn
+        # discord.py does not have partial event
+        event = await guild.fetch_scheduled_event(event_id, with_counts=False)
+        start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        end_time = datetime.fromtimestamp(timestamp+7200, tz=timezone.utc)
+        if tier:
+            event_name = " ".join([name, tier])
+        else:
+            event_name = name
         try:
-            guild_id, event_id = select_one(conn, 'Raids', ['guild_id', 'event_id'], ['raid_id'], [raid_id])
-        except TypeError:
-            logger.info("Raid already deleted from database.")
-            return
+            await event.edit(name=event_name, description=description, start_time=start_time, end_time=end_time)
+        except discord.Forbidden:
+            logger.warning("Missing manage events permission for guild {0}".format(guild.id))
+
+    async def delete_guild_event(self, guild, raid_id):
+        conn = self.bot.conn
+        event_id = select_one(conn, 'Raids', ['event_id'], ['raid_id'], [raid_id])
         if not event_id:
             return
 
-        url = self.bot.api + f"guilds/{guild_id}/scheduled-events/{event_id}"
-        r = requests.delete(url, headers=self.headers)
-        r.raise_for_status()
+        # discord.py does not have partial event
+        event = await guild.fetch_scheduled_event(event_id, with_counts=False)
+        try:
+            await event.delete()
+        except discord.Forbidden:
+            logger.warning("Missing manage events permission for guild {0}".format(guild.id))
 
     def get_events(self):
         current_time = datetime.now().timestamp()
@@ -188,16 +177,28 @@ class CalendarCog(commands.Cog):
 
         stripped = re.sub('<[^<]+?>', '', r.text)
         # Let us hope this questionable pattern is stable enough
-        pattern = 'Here is the current events schedule(.*)End Time:(.*)For the most up-to-date listings of player-run events'
+        pattern = 'Here is the current events schedule(.*)Ends: \(All Times Eastern\)(.*)Last edited by'
         prog = re.compile(pattern, flags=re.DOTALL)
         result = prog.search(stripped)
-        data  = [line for line in result.group(2).splitlines() if line]
-        events = [chunk for chunk in chunks(data, 3)]
+        events_data = result.group(2).strip().splitlines()
+        events = [chunk for chunk in chunks(events_data, 4)]
         parsed_events = [(event[0], self.parse_event_time(event[1]), self.parse_event_time(event[2])) for event in events]
 
+        cutoff_unlock = current_time - 30 * 86400
         cutoff_past = current_time - 86400
         cutoff_future = current_time + 90 * 86400
-        upcoming_events = [event for event in parsed_events if cutoff_past < event[2] < cutoff_future]
+
+        upcoming_events = []
+        for event in parsed_events:
+            if event[2]:
+                if cutoff_past < event[2] and event[1] < cutoff_future:
+                    upcoming_events.append(event)
+            else:
+                if cutoff_unlock < event[1] < cutoff_future:
+                    upcoming_events.append(event)
+            if event[1] > cutoff_future:
+                break
+
         self.cached_events_at = current_time
         self.upcoming_events = upcoming_events
         return upcoming_events
@@ -208,13 +209,19 @@ class CalendarCog(commands.Cog):
         title = _("Upcoming events:")
         embed = discord.Embed(title=title, colour=discord.Colour(0x3498db))
         for e in events:
-            time_str = f"<t:{e[1]}> -- <t:{e[2]}>"
+            if e[2]:
+                time_str = f"<t:{e[1]}> -- <t:{e[2]}>"
+            else:
+                time_str = f"From <t:{e[1]}>"
             embed.add_field(name=e[0], value=time_str, inline=False)
         embed.set_footer(text=_("Last updated"))
         embed.timestamp = datetime.fromtimestamp(self.cached_events_at)
         return embed
 
     def parse_event_time(self, time):
+        if not time:
+            return None
+        time = time.replace(" Eastern", "")
         time = pytz.timezone("America/New_York").localize(dateparser.parse(time)).timestamp()
         return int(time)
 

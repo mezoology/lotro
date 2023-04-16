@@ -25,8 +25,7 @@ try:
     with open('config.json', 'r') as f:
         config = json.load(f)
 except FileNotFoundError:
-    self.logger.critical(f"Please create the file 'config.json', see GitHub for an example.")
-    raise SystemExit
+    logger.warning(f"No config file found. Please create the file 'config.json', see GitHub for an example.")
 role_names = read_config_key(config, 'CLASSES', True)
 duo_spec = read_config_key(config, 'DUOSPEC', False)
 Classes = Enum("Classes", role_names)
@@ -275,7 +274,7 @@ class RaidCog(commands.Cog):
         raid_time = datetime.datetime.utcfromtimestamp(timestamp)
         # Check if time is in near future. Otherwise parsed date was likely unintended.
         current_time = int(time.time())
-        if current_time + 604800 < timestamp:
+        if current_time + 604800 < timestamp or current_time > timestamp:
             error_message = _("Please check the date <@{0}>. You are posting a raid for: {1} UTC.").format(
                 author_id, raid_time)
             await channel.send(error_message, delete_after=30)
@@ -298,14 +297,11 @@ class RaidCog(commands.Cog):
         await self.calendar_cog.update_calendar(guild_id)
 
     async def create_guild_event(self, channel, raid_id):
-        try:
-            event_id = self.calendar_cog.create_guild_event(raid_id)
-        except requests.HTTPError as e:
-            logger.warning(e.response.text)
+        event_id = await self.calendar_cog.create_guild_event(channel.guild, raid_id)
+        if event_id == 0:
+            return
+        if not event_id:
             err_msg = _("Failed to create the discord event. Please check the bot has the manage event permission.")
-            await channel.send(err_msg, delete_after=20)
-        except requests.exceptions.JSONDecodeError as e:
-            err_msg = _("Invalid response from Discord.")
             await channel.send(err_msg, delete_after=20)
         else:
             upsert(self.conn, 'Raids', ['event_id'], [event_id], ['raid_id'], [raid_id])
@@ -442,7 +438,7 @@ class RaidCog(commands.Cog):
                         i = i + 1
                         if row[i]:
                             spec_str = ""
-                            if specs:
+                            if specs and i < len(self.role_names) + 3:
                                 spec = specs[i-3]
                                 if spec:
                                     for emoji in ["\U0001F534", "\U0001F535", "\U0001F7E1"]:
@@ -520,6 +516,8 @@ class RaidCog(commands.Cog):
                 await self.cleanup_old_raid(raid_id, "Raid post already deleted.")
             except discord.Forbidden:
                 await self.cleanup_old_raid(raid_id, "We are missing required permissions to see raid post.")
+            except discord.DiscordServerError:
+                logger.warning("Discord server error when fetching the raid message.")
             else:
                 if current_time > timestamp + expiry_time:
                     await self.cleanup_old_raid(raid_id, "Deleted expired raid post.")
@@ -546,7 +544,7 @@ class RaidCog(commands.Cog):
         delete(self.conn, 'Players', ['raid_id'], [raid_id])
         delete(self.conn, 'Assignment', ['raid_id'], [raid_id])
         logger.info("Deleted old raid from database.")
-        await self.calendar_cog.update_calendar(guild_id, new_run=False)
+        await self.calendar_cog.update_calendar(guild_id)
         try:
             self.raids.remove(raid_id)
         except ValueError:
@@ -914,20 +912,14 @@ class ConfigureModal(discord.ui.Modal):
         await interaction.response.send_message(resp_msg, ephemeral=True, delete_after=raid_post_delay)
         # Update corresponding discord posts and events
         await self.raid_cog.update_raid_post(self.raid_id, interaction.channel)
-        await self.calendar_cog.update_calendar(interaction.guild.id, new_run=False)
-        try:
-            self.calendar_cog.modify_guild_event(self.raid_id)
-        except requests.HTTPError as e:
-            logger.warning(e.response.text)
+        await self.calendar_cog.update_calendar(interaction.guild.id)
+        await self.calendar_cog.modify_guild_event(interaction.guild, self.raid_id)
         self.stop()
 
     async def delete_raid(self, interaction: discord.Interaction):
         await interaction.response.defer()
         # Delete the guild event
-        try:
-            self.calendar_cog.delete_guild_event(self.raid_id)
-        except requests.HTTPError as e:
-            logger.warning(e.response.text)
+        await self.calendar_cog.delete_guild_event(interaction.guild, self.raid_id)
         # remove from memory first
         await self.raid_cog.cleanup_old_raid(self.raid_id, "Raid deleted via button.")
         # so deletion doesn't trigger another clean up
