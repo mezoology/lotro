@@ -204,8 +204,8 @@ class RaidCog(commands.Cog):
         app_commands.Choice(name='Clear specialization', value=0b000),
     ])
     async def specs_respond(self, interaction: discord.Interaction, classes: Classes, spec: app_commands.Choice[int]):
-        if duo_spec and classes.name in duo_spec and (spec.value >> 2 % 2):
-            await interaction.response.send_message(_("Invalid specialization.").format(classes.name))
+        if duo_spec and classes.name in duo_spec and (spec.value & 0b100):
+            await interaction.response.send_message(_("Invalid specialization."))
             return
         upsert(self.conn, 'Specs', [classes.name], [spec.value], ['player_id'], [interaction.user.id])
         await interaction.response.send_message(_("Updated your {0} specialization.").format(classes.name))
