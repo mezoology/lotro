@@ -9,7 +9,7 @@ COPY /source/ .
 RUN mkdir -p ./data/db
 RUN mkdir -p ./data/log
 COPY /data/ ../data/
-COPY /source/lotro-com-chain.pem ./data/db
+COPY ./lotro-com-chain.pem ./data/db
 
 
 CMD [ "python", "./main.py" ]
