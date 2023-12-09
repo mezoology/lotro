@@ -31,7 +31,7 @@ class RSSCog(commands.GroupCog, name=_("rss"), description=_("Manage RSS setting
         self.rss_task.cancel()
 
     def get_rss_feed(self, url):
-        response = requests.get(url, verify="../lotro-com-chain.pem")
+        response = requests.get(url, verify="./data/db/lotro-com-chain.pem")
         if response.status_code != 200:
             logger.error("LotRO forums endpoint status: {0}.".format(response.status_code))
             logger.error(response.text)
