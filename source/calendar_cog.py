@@ -175,7 +175,7 @@ class CalendarCog(commands.Cog):
         stripped = re.sub('<[^<]+?>', '', r.text)
         stripped = stripped.replace('\xa0', '')
         # Let us hope this questionable pattern is stable enough
-        pattern = 'Here is the current events schedule(.*)Ends: \(All Times Eastern\)(.*)Share On:'
+        pattern = r'End Time/Date \(Eastern\)(.*)End Time/Date \(Eastern\)(.*)Share On:'
 
         prog = re.compile(pattern, flags=re.DOTALL)
         result = prog.search(stripped)
@@ -185,7 +185,7 @@ class CalendarCog(commands.Cog):
 
         cutoff_unlock = current_time - 30 * 86400
         cutoff_past = current_time - 86400
-        cutoff_future = current_time + 90 * 86400
+        cutoff_future = current_time + 60 * 86400
 
         upcoming_events = []
         for event in parsed_events:
@@ -224,11 +224,18 @@ class CalendarCog(commands.Cog):
         embed.timestamp = datetime.fromtimestamp(self.cached_events_at)
         return embed
 
-    def parse_event_time(self, time):
-        if not time:
+    def parse_event_time(self, time_string):
+        if not time_string:
             return None
-        time = time.replace(" Eastern", "")
-        time = pytz.timezone("America/New_York").localize(dateparser.parse(time)).timestamp()
+        time_string = time_string.casefold()
+        time_string = time_string.replace(" eastern", "")
+        time_string = time_string.replace("approximately ", "")
+        time = dateparser.parse(time_string)
+        try:
+            time = pytz.timezone("America/New_York").localize(time).timestamp()
+        except:
+            logger.info(f"Calendar failed to parse: {time_string}")
+            return None
         return int(time)
 
     @app_commands.command(name=_("events"), description=_("Shows upcoming official LotRO events in your local time."))
