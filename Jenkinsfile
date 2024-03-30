@@ -5,6 +5,7 @@ node {
         /* Let's make sure we have the repository cloned to our workspace */
 
         checkout scm
+        docker.withServer('tcp://192.168.0.247:4243')
     }
 
     stage('Build image') {
