@@ -1,6 +1,11 @@
 node {
     def app
-
+    agent {
+            
+            label 'test'  // both label and image
+                // image 'mezoology/jnkns-agent:pydo' 
+            
+        }
     stage('Clone repository') {
         /* Let's make sure we have the repository cloned to our workspace */
 
