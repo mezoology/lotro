@@ -13,7 +13,7 @@ node {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
         agent {
-            docker {
+            node {
             label 'docker-agent-python'  // both label and image
             //image 'node:7-alpine' 
             }
