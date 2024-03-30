@@ -13,13 +13,13 @@ node {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
         agent {
-            node {
-            label 'docker-agent-python'  // both label and image
-            //image 'node:7-alpine' 
+            docker {
+                label 'docker-agent-python'  // both label and image
+                image 'python:3.7' 
             }
 
         app = docker.build("mezoology/lotrobot")
-    }
+            }
     }
 
     stage('Test image') {
