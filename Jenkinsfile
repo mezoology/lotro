@@ -1,3 +1,4 @@
+env.DOCKER_HOST = 'tcp://132.145.20.93:10240'
 node {
     def app
 
@@ -5,7 +6,7 @@ node {
         /* Let's make sure we have the repository cloned to our workspace */
 
         checkout scm
-        docker.withServer('tcp://132.145.20.93:10240')
+        // docker.withServer('tcp://132.145.20.93:10240')
     }
 
     stage('Build image') {
