@@ -13,8 +13,10 @@ node {
     stage('Build image') {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
-
+        docker.withServer('tcp://132.145.20.93:10240') {
+            docker.image('python:3.7')
         app = docker.build("mezoology/lotrobot")
+    }
     }
 
     stage('Test image') {
