@@ -1,4 +1,4 @@
-env.DOCKER_HOST = 'tcp://132.145.20.93:10240'
+
 node {
     def app
 
@@ -12,8 +12,14 @@ node {
     stage('Build image') {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
+        agent {
+            docker {
+            label 'docker-agent-python'  // both label and image
+            //image 'node:7-alpine' 
+            }
 
         app = docker.build("mezoology/lotrobot")
+    }
     }
 
     stage('Test image') {
