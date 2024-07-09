@@ -12,34 +12,37 @@ node {
         checkout scm
 
     }
-    
 
+    stage("Load envVars File") {
+
+           load "/var/jenkins_home/workspace/lotro-bot/source/__init__.py"
+           echo "${__version__}"
+
+    }
+    
+    stage("Initialization") {
+            // use name of the patchset as the build name
+            buildName "${__version__}.${env.BUILD_NUMBER}"
+            buildDescription "Executed @ ${NODE_NAME} ---- ${__version__}"
+            
+    }
     stage('Build image') {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
        
-        app = docker.build("mezoology/lotrobot")
+        app = docker.withRegistry('https://registry.hub.docker.com', 'hub_id') {
+            def image = docker.image("mezoology/bot-test")
+                sh "docker context create tls"
+                sh "docker buildx create --use tls --name multiarch"
+                sh """
+                docker buildx build \
+                    --platform linux/amd64,linux/arm64 \
+                    -t ${image.imageName()}:${__version__}.${env.BUILD_NUMBER} \
+                    -t ${image.imageName()}:latest \
+                    --push .
+                    
+                """
+    }
  
-    }
-    
-
-    stage('Test image') {
-        /* Ideally, we would run a test framework against our image.
-         * For this example, we're using a Volkswagen-type approach ;-) */
-
-        app.inside {
-            sh 'echo "Tests passed"'
-        }
-    }
-
-    stage('Push image') {
-        /* Finally, we'll push the image with two tags:
-         * First, the incremental build number from Jenkins
-         * Second, the 'latest' tag.
-         * Pushing multiple tags is cheap, as all the layers are reused. */
-        docker.withRegistry('https://registry.hub.docker.com', 'hub_id') {
-            app.push("${env.BUILD_NUMBER}")
-            app.push("latest")
-        }
     }
 }
