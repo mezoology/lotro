@@ -16,7 +16,7 @@ node {
     stage("Load envVars File") {
 
            load "/var/jenkins_home/workspace/lotro-bot/source/__init__.py"
-           echo "${__version__}"
+
 
     }
     
