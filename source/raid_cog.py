@@ -8,6 +8,7 @@ from discord.ext import tasks
 from enum import Enum
 import json
 import logging
+import random
 import re
 import requests
 import time
@@ -44,6 +45,7 @@ class RaidCog(commands.Cog):
         self.bot = bot
         self.conn = bot.conn
         self.role_names = bot.role_names
+        self.creep_names = bot.creep_names
         self.slots_class_names = bot.slots_class_names
         self.time_cog = bot.get_cog('TimeCog')
         self.calendar_cog = bot.get_cog('CalendarCog')
@@ -66,7 +68,7 @@ class RaidCog(commands.Cog):
             host_guild = bot.guilds[0]
         logger.info("Using emoji from {0}.".format(host_guild))
         self.class_emojis = [emoji for emoji in host_guild.emojis if emoji.name in self.role_names]
-        self.creep_emojis = [emoji for emoji in host_guild.emojis if emoji.name in bot.creep_names]
+        self.creep_emojis = [emoji for emoji in host_guild.emojis if emoji.name in self.creep_names]
         self.emojis_dict = {emoji.name: str(emoji) for emoji in self.class_emojis + self.creep_emojis}
 
         # Add raid views
@@ -427,7 +429,8 @@ class RaidCog(commands.Cog):
     def build_raid_players(self, raid_id, available=True, block_size=6):
         columns = ['raid_id', 'player_id', 'byname']
         if available:
-            columns.extend(self.emojis_dict.keys())
+            columns.extend(self.role_names)
+            columns.extend(self.creep_names)
         unavailable = not available
         result = select(self.conn, 'Players', columns, ['raid_id', 'unavailable'], [raid_id, unavailable])
         player_strings = []
@@ -440,7 +443,7 @@ class RaidCog(commands.Cog):
                 if available:
                     specs = select_one(self.conn, 'Specs', self.role_names, ['player_id'], [row[1]])
                     player_string = row[i] + " "
-                    for name in self.emojis_dict:
+                    for name in [*self.role_names, *self.creep_names]:
                         i = i + 1
                         if row[i]:
                             spec_str = ""
@@ -505,8 +508,18 @@ class RaidCog(commands.Cog):
         notify_time = 300  # Notify raiders 5 minutes before.
         current_time = datetime.datetime.now().timestamp()
 
-        cutoff = current_time + 2 * notify_time
+        cutoff = current_time + notify_time + 1
         raids = select_le(self.conn, 'Raids', ['raid_id', 'channel_id', 'time', 'roster'], ['time'], [cutoff])
+        raid_start_msgs = [
+            _("Gondor calls for aid! {} will you answer?"),
+            _("It's a dangerous business, {}, going out your door."),
+            _("I made a promise Mr Frodo. A promise. \"Don't you leave him {}.\""),
+            _("This task was appointed to you {}. And if you do not find a way, no one will."),
+            _("Let this be the hour when we draw swords together {}."),
+            _("A red sun rises. Blood will be spilt this night {}."),
+            _("I can't carry it for you, but I can carry you {}."),
+            _("Looks like raiding's back on the menu, {}."),
+        ]
         for raid in raids:
             raid_id = int(raid[0])
             channel_id = int(raid[1])
@@ -528,13 +541,16 @@ class RaidCog(commands.Cog):
                 if current_time > timestamp + expiry_time:
                     await self.cleanup_old_raid(raid_id, "Deleted expired raid post.")
                     await post.delete()
-                elif current_time < timestamp - notify_time:
-                    raid_start_msg = _("Gondor calls for aid! Will you answer the call")
-                    if roster:
-                        players = select(self.conn, 'Assignment', ['player_id'], ['raid_id'], [raid_id])
-                        player_msg = " ".join(["<@{0}>".format(player[0]) for player in players if player[0]])
-                        raid_start_msg = " ".join([raid_start_msg, player_msg])
-                    raid_start_msg = raid_start_msg + _("? We are forming for the raid now.")
+                elif current_time < timestamp:
+                    raid_start_msg = random.choice(raid_start_msgs)
+                    players = select(self.conn, 'Assignment', ['player_id'], ['raid_id'], [raid_id])
+                    player_ids = ["<@{}>".format(player[0]) for player in players if player[0]]
+                    if not player_ids:
+                        player_id = select_one(self.conn, 'Raids', ['organizer_id'], ['raid_id'], [raid_id])
+                        player_ids = ["<@{}>".format(player_id)]
+                    player_msg = " ".join(player_ids)
+                    raid_start_msg = raid_start_msg.format(player_msg)
+                    raid_start_msg = raid_start_msg + _(" We are forming for the raid now.")
                     try:
                         await channel.send(raid_start_msg, delete_after=notify_time * 2)
                     except discord.Forbidden:
@@ -608,6 +624,7 @@ class RaidView(discord.ui.View):
         roster = select_one(self.conn, 'Raids', ['roster'], ['raid_id'], [raid_id])
         if not roster:
             upsert(self.conn, 'Raids', ['roster'], [True], ['raid_id'], [raid_id])
+            self.conn.commit()
 
     @discord.ui.button(emoji="\u274C", style=discord.ButtonStyle.red, custom_id='raid_view:cancel')
     async def red_cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
