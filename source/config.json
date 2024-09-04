@@ -1,5 +1,4 @@
 {
-
   "CLASSES": ["Beorning","Brawler","Burglar","Captain","Champion","Guardian","Hunter","Loremaster","Mariner","Minstrel","Runekeeper","Warden"],
   "DUOSPEC": ["Brawler","Guardian","Minstrel","Warden"],
   "CREEPS": ["Blackarrow", "Defiler", "Reaver", "Stalker", "Warleader", "Weaver"],
